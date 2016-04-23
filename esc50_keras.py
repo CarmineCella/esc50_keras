@@ -11,14 +11,20 @@ import os
 import fnmatch
 import librosa
 import numpy as np
-from sklearn.cross_validation import KFold
-
+from sklearn.cross_validation import cross_val_score, StratifiedShuffleSplit
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation, Flatten
+from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.optimizers import SGD
+from keras.utils import np_utils
+    
 SAMPLELEN=110272
 compute = False
 
 params = {'ncoeff': 20, 'fft': 4096, 'hop': 2048, \
           'nclasses': 50, 'nsamples':2000, \
-          'nfolds': 3, 'split':.25}
+          'nfolds': 3, 'split':.25, \
+          'bsize': 32, 'nepoch': 2}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -49,38 +55,71 @@ def compute_features (root_path, params):
 
     return X_data, y_data
     
-def create_folds (kf):    
-    for train_index, test_index in kf:
+def create_folds (X_data, y_data, params):    
+    cv = StratifiedShuffleSplit(y_data, n_iter=params['nfolds'], test_size=params['split'])
+    
+    for train_index, test_index in cv:
         X_train, X_test = X_data[train_index], X_data[test_index]
         y_train, y_test = y_data[train_index], y_data[test_index]
-
-    return X_train, y_train, X_test, y_test
+    return X_train, X_test, y_train, y_test, cv
     
-def svm_classify_data (X_data, y_data, params):
+    
+def svm_classify(X_data, y_data, cv, params):
     from sklearn.svm import SVC
     from sklearn.preprocessing import StandardScaler
     from sklearn.pipeline import make_pipeline
     svm = SVC(C=1., kernel="linear")
     
     pipeline = make_pipeline(StandardScaler(), svm)
-    
-    from sklearn.cross_validation import cross_val_score, StratifiedShuffleSplit
-    
-    y = y_data
-    X = X_data.view()
-    X.shape = X.shape[0], -1
 
-    cv = StratifiedShuffleSplit(y, n_iter=params['nfolds'], test_size=params['split'])
-    scores = cross_val_score(pipeline, X, y, cv=cv, scoring="accuracy")
+    X_flatten = X_data.view()
+    X_flatten.shape = X_flatten.shape[0], -1
+
+    scores = cross_val_score(pipeline, X_flatten, y_data, cv=cv, scoring="accuracy")
     return scores, cv
     
-def compute_measures (confmat):
-    acc = 0
-    aoc = 0
-    fmeasure = 0 
+def vgg_classify(X_train, X_test, y_train, y_test, params):
     
-    return acc, aoc, fmeasure
+    # convert class vectors to binary class matrices
+    Y_train = np_utils.to_categorical(y_train, params["nclasses"])
+    Y_test = np_utils.to_categorical(y_test, params["nclasses"])
     
+    model = Sequential()
+    
+    model.add(Convolution2D(32, 3, 3, border_mode='same',
+                            input_shape=(1, X_train.shape[2], X_data.shape[3])))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(32, 3, 3))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+    
+    model.add(Convolution2D(64, 3, 3, border_mode='same'))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(64, 3, 3))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+    
+    model.add(Flatten())
+    model.add(Dense(512))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(params["nclasses"]))
+    model.add(Activation('softmax'))
+    
+    # let's train the model using SGD + momentum (how original).
+    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(loss='categorical_crossentropy',
+                optimizer=sgd,
+                metrics=['accuracy'])
+
+    model.fit(X_train, Y_train,
+            batch_size=params["bsize"],
+            nb_epoch=params["nepoch"],
+            validation_data=(X_test, Y_test),
+            shuffle=True)
+                
 if __name__ == "__main__":
     print ("ESC-50 classification with Keras");
     print ("")    
@@ -95,13 +134,15 @@ if __name__ == "__main__":
         print ("reloading features...")
         X_data = np.load ("X_data.npy")
         y_data = np.load ("y_data.npy")    
-    
-    print ("computing SVM basline...")
-    scores, cv = svm_classify_data(X_data, y_data, params)
+
+    print ("making folds...")
+    X_train, X_test, y_train, y_test, cv = create_folds(X_data, y_data, params)
+        
+    print ("computing linear SVM basline...")
+    scores, cv = svm_classify(X_data, y_data, cv, params)
     print ("scores: " + str(scores))
     
-    X_train, y_train, X_test, y_test = create_folds(cv)
+    print ("computing vgg CNN classification...")
+    vgg_classify(X_train, X_test, y_train, y_test, params)
     
-
-
     
