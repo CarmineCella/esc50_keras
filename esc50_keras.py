@@ -14,11 +14,11 @@ import numpy as np
 from sklearn.cross_validation import KFold
 
 SAMPLELEN=110272
-compute = False
+compute = True
 
-params = {'ncoeff': 20, 'fft': 2048, 'hop': 2048, \
+params = {'ncoeff': 90, 'fft': 2048, 'hop': 2048, \
           'nclasses': 50, 'nsamples':2000, \
-          'nfolds': 4, 'split':.25}
+          'nfolds': 3, 'split':.25}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -37,8 +37,6 @@ def compute_features (root_path, params):
                 print ("\tsample: " + items)
                 y, sr = librosa.load(root + '/' + items)
                 C = librosa.feature.mfcc(y=y, sr=sr, hop_length=params['hop'],n_mfcc = params['ncoeff'])
-                #C = librosa.feature.melspectrogram(y=y, sr=sr,
-                #     n_mels=params['ncoeff'], n_fft=params['fft'], hop_length=params['hop'])
                 C = C[:params['ncoeff'],:nframes]
                 X_data[samples, 0, :C.shape[0], :C.shape[1]] = C
                 y_data[samples] = classes
