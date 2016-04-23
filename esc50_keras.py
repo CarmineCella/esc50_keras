@@ -14,9 +14,9 @@ import numpy as np
 from sklearn.cross_validation import KFold
 
 SAMPLELEN=110272
-compute = True
+compute = False
 
-params = {'ncoeff': 90, 'fft': 2048, 'hop': 2048, \
+params = {'ncoeff': 20, 'fft': 4096, 'hop': 2048, \
           'nclasses': 50, 'nsamples':2000, \
           'nfolds': 3, 'split':.25}
 
@@ -72,7 +72,7 @@ def svm_classify_data (X_data, y_data, params):
 
     cv = StratifiedShuffleSplit(y, n_iter=params['nfolds'], test_size=params['split'])
     scores = cross_val_score(pipeline, X, y, cv=cv, scoring="accuracy")
-    return scores
+    return scores, cv
     
 def compute_measures (confmat):
     acc = 0
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         y_data = np.load ("y_data.npy")    
     
     print ("computing SVM basline...")
-    scores = svm_classify_data(X_data, y_data, params)
+    scores, cv = svm_classify_data(X_data, y_data, params)
     print ("scores: " + str(scores))
     
     X_train, y_train, X_test, y_test = create_folds(cv)
