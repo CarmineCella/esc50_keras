@@ -22,15 +22,16 @@ from sklearn.svm import SVC
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.pipeline import make_pipeline
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
 
 SAMPLELEN = 110272
 
-params = {'compute_features':False, 'compute_baseline': False, \
+params = {'compute_features':True, 'compute_baseline': True, \
           'standardize_data':True, 'augment_data': True, \
-          'ncoeff': 20, 'fft': 4096, 'hop': 2048, \
+          'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
           'nclasses': 50, 'nsamples':2000, \
           'nfolds': 3, 'split':.25, \
-          'bsize': 128, 'nepoch': 5}
+          'bsize': 128, 'nepoch': 200}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -75,16 +76,12 @@ def standardize (X_train, X_test):
     
     X_train = (X_train - mu) / de
     X_test = (X_test - mu) / de
-    # mm = np.max(X_train, axis=0)
-    # nn = np.min(X_train, axis=0)
-    # X_train = (X_train -nn) / (mm-nn)
-    # X_test = (X_test - nn) / (mm-nn)
     return X_train, X_test
 
 def svm_classify(X_data, y_data, cv, params):
     svm = SVC(C=1., kernel="linear")
     
-    pipeline = make_pipeline(svm)
+    pipeline = make_pipeline(StandardScaler(), svm)
 
     X_flatten = X_data.view()
     X_flatten.shape = X_flatten.shape[0], -1
@@ -106,16 +103,15 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
     
     model = Sequential()
     
-    # model.add(Convolution2D(32, 3, 3, border_mode='same',
-    #                         input_shape=(img_channels, img_rows, img_cols)))
-    # model.add(Activation('relu'))
-    # model.add(Convolution2D(32, 3, 3))
-    # model.add(Activation('relu'))
-    # model.add(MaxPooling2D(pool_size=(2, 2)))
-    # model.add(Dropout(0.25))
-    # 
-    model.add(Convolution2D(64, 3, 3, border_mode='same',
-                            input_shape=(img_channels, img_rows, img_cols)))
+    model.add(Convolution2D(32, 3, 3, border_mode='same',
+                             input_shape=(img_channels, img_rows, img_cols)))
+    model.add(Activation('relu'))
+#    model.add(Convolution2D(32, 3, 3))
+#    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+     
+    model.add(Convolution2D(64, 3, 3, border_mode='same'))
     model.add(Activation('relu'))
     model.add(Convolution2D(64, 3, 3))
     model.add(Activation('relu'))
@@ -193,23 +189,27 @@ if __name__ == "__main__":
         
     print ("making folds...")
     X_train, X_test, y_train, y_test, cv = create_folds(X_data, y_data, params)
-
-    if params["standardize_data"] == True:
-        print ("standardizing data...")
-        X_train, X_test = standardize(X_train, X_test)
         
     if params["compute_baseline"] == True:
         print ("computing linear SVM baseline...")
         scores, cv = svm_classify(X_data, y_data, cv, params)
         print ("scores: " + str(scores))
-    
+
+    if params["standardize_data"] == True:
+        print ("standardizing data...")
+        X_train, X_test = standardize(X_train, X_test)
+        
     print ("computing CNN classification...")
     bl = cnn_classify(X_train, X_test, y_train, y_test, params)
-    np.save('history', bl)
-
+    np.save ('history.npy', bl.history)
     plt.plot (bl.history['acc'])
     plt.plot(bl.history['val_acc'])
+    plt.title ('Accuracy (train vs test)')
     plt.show ()
         
+    plt.plot (bl.history['loss'])
+    plt.plot(bl.history['val_loss'])
+    plt.title ('Loss (train vs test)')
+    plt.show ()
 #eof
     
