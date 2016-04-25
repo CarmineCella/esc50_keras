@@ -69,16 +69,17 @@ def create_folds (X_data, y_data, params):
         y_train, y_test = y_data[train_index], y_data[test_index]
     return X_train, X_test, y_train, y_test, cv
         
-def standardize (X_data):
-    mu = np.mean (X_data, axis=0)
-    de = np.std (X_data, axis=0)
+def standardize (X_train, X_test):
+    mu = np.mean (X_train, axis=0)
+    de = np.std (X_train, axis=0)
     
-    X_data = (X_data - mu) / de
-    
-    mm = np.max(X_data, axis=0)
-    nn = np.min(X_data, axis=0)
-    X_data = (X_data -nn) / (mm-nn)
-    return X_data
+    X_train = (X_train - mu) / de
+    X_test = (X_test - mu) / de
+    # mm = np.max(X_train, axis=0)
+    # nn = np.min(X_train, axis=0)
+    # X_train = (X_train -nn) / (mm-nn)
+    # X_test = (X_test - nn) / (mm-nn)
+    return X_train, X_test
 
 def svm_classify(X_data, y_data, cv, params):
     svm = SVC(C=1., kernel="linear")
@@ -189,13 +190,14 @@ if __name__ == "__main__":
     X_data.astype('float32')
     y_data.astype('uint8')
     
-    if params["standardize_data"] == True:
-        print ("standardizing data...")
-        X_data = standardize(X_data)
         
     print ("making folds...")
     X_train, X_test, y_train, y_test, cv = create_folds(X_data, y_data, params)
 
+    if params["standardize_data"] == True:
+        print ("standardizing data...")
+        X_train, X_test = standardize(X_train, X_test)
+        
     if params["compute_baseline"] == True:
         print ("computing linear SVM baseline...")
         scores, cv = svm_classify(X_data, y_data, cv, params)
