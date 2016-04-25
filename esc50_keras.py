@@ -16,6 +16,7 @@ from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
+from keras.callbacks import History
 from keras.utils import np_utils
 from sklearn.svm import SVC
 from keras.preprocessing.image import ImageDataGenerator
@@ -28,7 +29,7 @@ params = {'compute_features':False, 'compute_baseline': False, \
           'ncoeff': 20, 'fft': 4096, 'hop': 2048, \
           'nclasses': 50, 'nsamples':2000, \
           'nfolds': 3, 'split':.25, \
-          'bsize': 128, 'nepoch': 50}
+          'bsize': 128, 'nepoch': 2}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -127,12 +128,17 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
     model.add(Activation('softmax'))
     
     model.summary ()
+    
+    from keras.utils.visualize_util import plot
+    plot(model, to_file='model.png')
+
     # let's train the model using SGD + momentum (how original).
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy',
                   optimizer=sgd,
                   metrics=['accuracy'])
                  
+    bl = History()
     if params["augment_data"]:
         print ("augment data...")
         datagen = ImageDataGenerator(
@@ -155,13 +161,16 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
                             batch_size=batch_size),
                             samples_per_epoch=X_train.shape[0],
                             nb_epoch=nb_epoch,
+                            callbacks=[bl],
                             validation_data=(X_test, Y_test))       
     else:
         model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
+              callbacks=[bl],
               validation_data=(X_test, Y_test),
               shuffle=True)
+    return bl
             
 if __name__ == "__main__":
     print ("ESC-50 classification with Keras");
@@ -195,6 +204,8 @@ if __name__ == "__main__":
         print ("scores: " + str(scores))
     
     print ("computing CNN classification...")
-    cnn_classify(X_train, X_test, y_train, y_test, params)
+    bl = cnn_classify(X_train, X_test, y_train, y_test, params)
+    np.save('history', bl)
+    
     
     
