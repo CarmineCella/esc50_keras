@@ -209,4 +209,5 @@ if __name__ == "__main__":
     plt.plot(bl.history['val_acc'])
     plt.show ()
         
+#eof
     
