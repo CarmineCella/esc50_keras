@@ -23,15 +23,43 @@ from keras.preprocessing.image import ImageDataGenerator
 from sklearn.pipeline import make_pipeline
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score
 
+class ShapeWrapper(BaseEstimator):
+    
+    def __init__(self, estimator, to_shape=(-1,)):
+        self.estimator = estimator
+        self.to_shape = to_shape
+        
+    def _transform(self, X):
+        Xreshaped = X.view()
+        new_shape = (X.shape[0],) + self.to_shape
+        Xreshaped.shape = new_shape
+        return Xreshaped
+        
+    def fit(self, X, y):
+        Xreshaped = self._transform(X)
+        self.estimator.fit(Xreshaped, y)
+        return self
+    
+    def predict(self, X):
+        Xreshaped = self._transform(X)
+        return self.estimator.predict(Xreshaped)
+    
+    def transform(self, X, y=None):
+        Xreshaped = self._transform(X)
+        return self.estimator.transform(Xreshaped)
+        
 SAMPLELEN = 110272
 
-params = {'compute_features':True, 'compute_baseline': True, \
+params = {'compute_features':True, 'compute_baseline': True, 'compute_cnn': False, \
           'standardize_data':True, 'augment_data': True, \
-          'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
+          'ncoeff': 20, 'fft': 4096, 'hop': 2048, \
           'nclasses': 50, 'nsamples':2000, \
           'nfolds': 3, 'split':.25, \
-          'bsize': 128, 'nepoch': 200}
+          'bsize': 128, 'nepoch': 250}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -64,11 +92,7 @@ def compute_features (root_path, params):
     
 def create_folds (X_data, y_data, params):    
     cv = StratifiedShuffleSplit(y_data, n_iter=params['nfolds'], test_size=params['split'])
-    
-    for train_index, test_index in cv:
-        X_train, X_test = X_data[train_index], X_data[test_index]
-        y_train, y_test = y_data[train_index], y_data[test_index]
-    return X_train, X_test, y_train, y_test, cv
+    return cv
         
 def standardize (X_train, X_test):
     mu = np.mean (X_train, axis=0)
@@ -78,16 +102,15 @@ def standardize (X_train, X_test):
     X_test = (X_test - mu) / de
     return X_train, X_test
 
-def svm_classify(X_data, y_data, cv, params):
+def svm_classify(X_train, X_test, y_train, y_test, params):
     svm = SVC(C=1., kernel="linear")
-    
-    pipeline = make_pipeline(StandardScaler(), svm)
+    rsvm = ShapeWrapper(svm)
+    rsvm.fit(X_train, y_train)
+    y_pred = rsvm.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred)
+    score = accuracy_score(y_test, y_pred)
 
-    X_flatten = X_data.view()
-    X_flatten.shape = X_flatten.shape[0], -1
-
-    scores = cross_val_score(pipeline, X_flatten, y_data, cv=cv, scoring="accuracy")
-    return scores, cv
+    return score, cm
     
 def cnn_classify(X_train, X_test, y_train, y_test, params):
     nb_classes = params["nclasses"]
@@ -124,8 +147,6 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
-    
-    model.summary ()
 
     # let's train the model using SGD + momentum (how original).
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
@@ -185,31 +206,42 @@ if __name__ == "__main__":
 
     X_data.astype('float32')
     y_data.astype('uint8')
-    
         
     print ("making folds...")
-    X_train, X_test, y_train, y_test, cv = create_folds(X_data, y_data, params)
+    cv = create_folds(X_data, y_data, params)
         
-    if params["compute_baseline"] == True:
-        print ("computing linear SVM baseline...")
-        scores, cv = svm_classify(X_data, y_data, cv, params)
-        print ("scores: " + str(scores))
+    cnt = 1
+    for train_index, test_index in cv:
+        print ("fold: " + str (cnt))
+        X_train, X_test = X_data[train_index], X_data[test_index]
+        y_train, y_test = y_data[train_index], y_data[test_index]
 
-    if params["standardize_data"] == True:
-        print ("standardizing data...")
-        X_train, X_test = standardize(X_train, X_test)
+        if params["standardize_data"] == True:
+            print ("standardizing data...")
+            X_train, X_test = standardize(X_train, X_test)
         
-    print ("computing CNN classification...")
-    bl = cnn_classify(X_train, X_test, y_train, y_test, params)
-    np.save ('history.npy', bl.history)
-    plt.plot (bl.history['acc'])
-    plt.plot(bl.history['val_acc'])
-    plt.title ('Accuracy (train vs test)')
-    plt.show ()
         
-    plt.plot (bl.history['loss'])
-    plt.plot(bl.history['val_loss'])
-    plt.title ('Loss (train vs test)')
-    plt.show ()
+        if params["compute_baseline"] == True:
+            print ("computing linear SVM baseline...")
+            score, cm = svm_classify(X_train, X_test, y_train, y_test, params)
+            print ("score " + str(score))
+            plt.matshow(cm)
+            plt.title ('Confusion matrix')
+            plt.show ()
+
+        if params["compute_cnn"] == True:        
+            print ("computing CNN classification...")
+            bl = cnn_classify(X_train, X_test, y_train, y_test, params)
+            plt.plot (bl.history['acc'])
+            plt.plot(bl.history['val_acc'])
+            plt.title ('Accuracy (train vs test)')
+            plt.show ()
+                
+            plt.plot (bl.history['loss'])
+            plt.plot(bl.history['val_loss'])
+            plt.title ('Loss (train vs test)')
+            plt.show ()
+        
+        cnt = cnt + 1
 #eof
     
