@@ -115,7 +115,7 @@ def svm_classify(X_train, X_test, y_train, y_test, params):
     return score, cm
     
 def rate_scheduler (epoch):
-    if epoch < 2:
+    if epoch < 75:
         return 0.01
     else:
         print ("lower learning rate")
