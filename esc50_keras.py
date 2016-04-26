@@ -243,7 +243,10 @@ if __name__ == "__main__":
             plt.title ('Loss (train vs test)')
             plt.show ()
             
-            np.save ('history_fold_'+str(cnt), bl)
+            np.save ('fold_acc'+str(cnt), bl.history['acc'])
+            np.save ('fold_val_acc'+str(cnt), bl.history['val_acc'])
+            np.save ('fold_loss'+str(cnt), bl.history['loss'])
+            np.save ('fold_val_loss'+str(cnt), bl.history['val_loss'])
         
         cnt = cnt + 1
 #eof
