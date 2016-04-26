@@ -54,12 +54,12 @@ class ShapeWrapper(BaseEstimator):
         
 SAMPLELEN = 110272
 
-params = {'compute_features':True, 'compute_baseline': True, 'compute_cnn': False, \
+params = {'compute_features':False, 'compute_baseline': True, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
-          'ncoeff': 20, 'fft': 4096, 'hop': 2048, \
+          'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
           'nclasses': 50, 'nsamples':2000, \
           'nfolds': 3, 'split':.25, \
-          'bsize': 128, 'nepoch': 250}
+          'bsize': 128, 'nepoch': 300}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -76,6 +76,7 @@ def compute_features (root_path, params):
         if len(waves) != 0:
             for items in waves:
                 print ("\tsample: " + items)
+
                 y, sr = librosa.load(root + '/' + items)
                 C = librosa.feature.mfcc(y=y, sr=sr, hop_length=params['hop'],n_mfcc = params['ncoeff'])
                 C = C[:params['ncoeff'],:nframes]
@@ -241,6 +242,8 @@ if __name__ == "__main__":
             plt.plot(bl.history['val_loss'])
             plt.title ('Loss (train vs test)')
             plt.show ()
+            
+            np.save ('history_fold_'+str(cnt), bl)
         
         cnt = cnt + 1
 #eof
