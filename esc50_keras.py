@@ -55,7 +55,8 @@ class ShapeWrapper(BaseEstimator):
         
 SAMPLELEN = 110272
 
-params = {'compute_features':False, 'compute_baseline': False, 'compute_cnn': True, \
+params = {'compute_features':False, 'plot':False, \
+          'compute_baseline': False, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
           'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
           'nclasses': 50, 'nsamples':2000, \
@@ -236,22 +237,25 @@ if __name__ == "__main__":
             print ("computing linear SVM baseline...")
             score, cm = svm_classify(X_train, X_test, y_train, y_test, params)
             print ("score " + str(score))
-            plt.matshow(cm)
-            plt.title ('Confusion matrix')
-            plt.show ()
+            
+            if params["plot"] == True:
+                plt.matshow(cm)
+                plt.title ('Confusion matrix')
+                plt.show ()
 
         if params["compute_cnn"] == True:        
             print ("computing CNN classification...")
             bl = cnn_classify(X_train, X_test, y_train, y_test, params)
-            plt.plot (bl.history['acc'])
-            plt.plot(bl.history['val_acc'])
-            plt.title ('Accuracy (train vs test)')
-            plt.show ()
+            if params["plot"] == True:
+                plt.plot (bl.history['acc'])
+                plt.plot(bl.history['val_acc'])
+                plt.title ('Accuracy (train vs test)')
+                plt.show ()
                 
-            plt.plot (bl.history['loss'])
-            plt.plot(bl.history['val_loss'])
-            plt.title ('Loss (train vs test)')
-            plt.show ()
+                plt.plot (bl.history['loss'])
+                plt.plot(bl.history['val_loss'])
+                plt.title ('Loss (train vs test)')
+                plt.show ()
             
             np.save ('fold_acc'+str(cnt), bl.history['acc'])
             np.save ('fold_val_acc'+str(cnt), bl.history['val_acc'])
