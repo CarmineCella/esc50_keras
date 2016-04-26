@@ -17,6 +17,7 @@ from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
 from keras.callbacks import History
+from keras.callbacks import LearningRateScheduler
 from keras.utils import np_utils
 from sklearn.svm import SVC
 from keras.preprocessing.image import ImageDataGenerator
@@ -54,11 +55,11 @@ class ShapeWrapper(BaseEstimator):
         
 SAMPLELEN = 110272
 
-params = {'compute_features':False, 'compute_baseline': True, 'compute_cnn': True, \
+params = {'compute_features':False, 'compute_baseline': False, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
           'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
           'nclasses': 50, 'nsamples':2000, \
-          'nfolds': 3, 'split':.25, \
+          'nfolds': 1, 'split':.25, \
           'bsize': 128, 'nepoch': 300}
 
 def compute_features (root_path, params):
@@ -113,6 +114,13 @@ def svm_classify(X_train, X_test, y_train, y_test, params):
 
     return score, cm
     
+def rate_scheduler (epoch):
+    if epoch < 2:
+        return 0.01
+    else:
+        print ("lower learning rate")
+        return 0.01 / 10
+        
 def cnn_classify(X_train, X_test, y_train, y_test, params):
     nb_classes = params["nclasses"]
     batch_size = params["bsize"]
@@ -156,6 +164,8 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
                   metrics=['accuracy'])
                  
     bl = History()
+    lr = LearningRateScheduler(rate_scheduler)
+    
     if params["augment_data"]:
         print ("augment data...")
         datagen = ImageDataGenerator(
@@ -178,13 +188,13 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
                             batch_size=batch_size),
                             samples_per_epoch=X_train.shape[0],
                             nb_epoch=nb_epoch,
-                            callbacks=[bl],
+                            callbacks=[bl, lr],
                             validation_data=(X_test, Y_test))       
     else:
         model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
-              callbacks=[bl],
+              callbacks=[bl, lr],
               validation_data=(X_test, Y_test),
               shuffle=True)
     return bl
@@ -213,7 +223,7 @@ if __name__ == "__main__":
         
     cnt = 1
     for train_index, test_index in cv:
-        print ("fold: " + str (cnt))
+        print ("----- fold: " + str (cnt) + " -----")
         X_train, X_test = X_data[train_index], X_data[test_index]
         y_train, y_test = y_data[train_index], y_data[test_index]
 
