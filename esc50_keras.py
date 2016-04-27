@@ -55,13 +55,13 @@ class ShapeWrapper(BaseEstimator):
         
 SAMPLELEN = 110272
 
-params = {'compute_features':False, 'plot':False, \
-          'compute_baseline': False, 'compute_cnn': True, \
+params = {'compute_features':False, 'plot':True, \
+          'compute_baseline': True, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
           'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
           'nclasses': 50, 'nsamples':2000, \
-          'nfolds': 1, 'split':.25, \
-          'bsize': 128, 'nepoch': 300}
+          'nfolds': 5, 'split':.25, \
+          'bsize': 128, 'nepoch': 200}
 
 def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
@@ -165,7 +165,7 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
                   metrics=['accuracy'])
                  
     bl = History()
-    lr = LearningRateScheduler(rate_scheduler)
+#    lr = LearningRateScheduler(rate_scheduler)
     
     if params["augment_data"]:
         print ("augment data...")
@@ -189,17 +189,29 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
                             batch_size=batch_size),
                             samples_per_epoch=X_train.shape[0],
                             nb_epoch=nb_epoch,
-                            callbacks=[bl, lr],
+                            callbacks=[bl],
                             validation_data=(X_test, Y_test))       
     else:
         model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
-              callbacks=[bl, lr],
+              callbacks=[bl],
               validation_data=(X_test, Y_test),
               shuffle=True)
-    return bl
+              
+    return bl, model
             
+def plot_cnn_results(bl):
+    plt.plot (bl.history['acc'])
+    plt.plot(bl.history['val_acc'])
+    plt.title ('Accuracy (train vs test)')
+    plt.show ()
+    
+    plt.plot (bl.history['loss'])
+    plt.plot(bl.history['val_loss'])
+    plt.title ('Loss (train vs test)')
+    plt.show ()
+    
 if __name__ == "__main__":
     print ("ESC-50 classification with Keras");
     print ("")    
@@ -245,17 +257,9 @@ if __name__ == "__main__":
 
         if params["compute_cnn"] == True:        
             print ("computing CNN classification...")
-            bl = cnn_classify(X_train, X_test, y_train, y_test, params)
+            bl, model = cnn_classify(X_train, X_test, y_train, y_test, params)
             if params["plot"] == True:
-                plt.plot (bl.history['acc'])
-                plt.plot(bl.history['val_acc'])
-                plt.title ('Accuracy (train vs test)')
-                plt.show ()
-                
-                plt.plot (bl.history['loss'])
-                plt.plot(bl.history['val_loss'])
-                plt.title ('Loss (train vs test)')
-                plt.show ()
+                plot_cnn_results(bl)
             
             np.save ('fold_acc'+str(cnt), bl.history['acc'])
             np.save ('fold_val_acc'+str(cnt), bl.history['val_acc'])
