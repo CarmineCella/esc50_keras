@@ -15,7 +15,7 @@ from sklearn.cross_validation import cross_val_score, StratifiedShuffleSplit
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
-from keras.optimizers import SGD
+from keras.optimizers import Adam
 from keras.callbacks import History
 from keras.callbacks import LearningRateScheduler
 from keras.utils import np_utils
@@ -55,7 +55,7 @@ class ShapeWrapper(BaseEstimator):
         
 SAMPLELEN = 110272
 
-params = {'compute_features':False, 'plot':True, \
+params = {'compute_features':True, 'plot':True, \
           'compute_baseline': True, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
           'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
@@ -79,7 +79,7 @@ def compute_features (root_path, params):
             for items in waves:
                 print ("\tsample: " + items)
 
-                y, sr = librosa.load(root + '/' + items)
+                y, sr = librosa.core.load(root + '/' + items)
                 C = librosa.feature.mfcc(y=y, sr=sr, hop_length=params['hop'],n_mfcc = params['ncoeff'])
                 C = C[:params['ncoeff'],:nframes]
                 X_data[samples, 0, :C.shape[0], :C.shape[1]] = C
@@ -159,9 +159,9 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
     model.add(Activation('softmax'))
 
     # let's train the model using SGD + momentum (how original).
-    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+    optim = Adam(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy',
-                  optimizer=sgd,
+                  optimizer=optim,
                   metrics=['accuracy'])
                  
     bl = History()
