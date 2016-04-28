@@ -11,19 +11,17 @@ import os
 import fnmatch
 import librosa
 import numpy as np
-from sklearn.cross_validation import cross_val_score, StratifiedShuffleSplit
+from sklearn.cross_validation import StratifiedShuffleSplit
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
-from keras.optimizers import Adam
+from keras.optimizers import SGD
 from keras.callbacks import History
 from keras.callbacks import LearningRateScheduler
 from keras.utils import np_utils
 from sklearn.svm import SVC
 from keras.preprocessing.image import ImageDataGenerator
-from sklearn.pipeline import make_pipeline
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
 from sklearn.base import BaseEstimator
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
@@ -56,17 +54,18 @@ class ShapeWrapper(BaseEstimator):
 SAMPLELEN = 110272
 
 params = {'compute_features':True, 'plot':True, \
-          'compute_baseline': True, 'compute_cnn': True, \
+          'compute_baseline': False, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
           'ncoeff': 20, 'fft': 2048, 'hop': 1024, \
           'nclasses': 50, 'nsamples':2000, \
-          'nfolds': 5, 'split':.25, \
+          'nfolds': 1, 'split':.2, \
           'bsize': 128, 'nepoch': 200}
 
-def compute_features (root_path, params):
+def compute_features (root_path, params):librosa.display.specshow(librosa.logamplitude(C**2, ref_power=np.max),
+...                          sr=sr, x_axis='time', y_axis='cqt_note')
     nframes = int(SAMPLELEN / params['hop']);
         
-    X_data = np.zeros ((params['nsamples'], 1, params['ncoeff'], nframes))
+    X_data = np.zeros ((params['nsamples'], 2, params['ncoeff'], nframes))
     y_data = np.zeros ((params['nsamples']))
     
     classes = 0
@@ -80,7 +79,12 @@ def compute_features (root_path, params):
                 print ("\tsample: " + items)
 
                 y, sr = librosa.core.load(root + '/' + items)
+                if len(y) == 0: 
+                    print ('empty file!')
+                    continue
+
                 C = librosa.feature.mfcc(y=y, sr=sr, hop_length=params['hop'],n_mfcc = params['ncoeff'])
+                #C = librosa.core.cqt y=y, sr=sr, hop_length=params['hop'])                
                 C = C[:params['ncoeff'],:nframes]
                 X_data[samples, 0, :C.shape[0], :C.shape[1]] = C
                 y_data[samples] = classes
@@ -125,7 +129,7 @@ def rate_scheduler (epoch):
 def cnn_classify(X_train, X_test, y_train, y_test, params):
     nb_classes = params["nclasses"]
     batch_size = params["bsize"]
-    nb_epoch =params["nepoch"]
+    nb_epoch = params["nepoch"]
     img_channels = 1
     img_rows = X_train.shape[2]
     img_cols = X_train.shape[3]
@@ -136,11 +140,11 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
     
     model = Sequential()
     
-    model.add(Convolution2D(32, 3, 3, border_mode='same',
+    model.add(Convolution2D(32, 5, 5, border_mode='same',
                              input_shape=(img_channels, img_rows, img_cols)))
     model.add(Activation('relu'))
-#    model.add(Convolution2D(32, 3, 3))
-#    model.add(Activation('relu'))
+    model.add(Convolution2D(32, 3, 3))
+    model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
      
@@ -159,13 +163,13 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
     model.add(Activation('softmax'))
 
     # let's train the model using SGD + momentum (how original).
-    optim = Adam(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+    optim = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy',
                   optimizer=optim,
                   metrics=['accuracy'])
                  
     bl = History()
-#    lr = LearningRateScheduler(rate_scheduler)
+    lr = LearningRateScheduler(rate_scheduler)
     
     if params["augment_data"]:
         print ("augment data...")
@@ -176,9 +180,9 @@ def cnn_classify(X_train, X_test, y_train, y_test, params):
             samplewise_std_normalization=False,  # divide each input by its std
             zca_whitening=False,  # apply ZCA whitening
             rotation_range=0,  # randomly rotate images in the range (degrees, 0 to 180)
-            width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
-            height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
-            horizontal_flip=True,  # randomly flip images
+            width_shift_range=0.4,  # randomly shift images horizontally (fraction of total width)
+            height_shift_range=0.4,  # randomly shift images vertically (fraction of total height)
+            horizontal_flip=False,  # randomly flip images
             vertical_flip=False)  # randomly flip images
     
         # compute quantities required for featurewise normalization
@@ -261,6 +265,8 @@ if __name__ == "__main__":
             if params["plot"] == True:
                 plot_cnn_results(bl)
             
+            print ('max train accuracy ' + str(np.max(bl.history['val_acc'])))
+
             np.save ('fold_acc'+str(cnt), bl.history['acc'])
             np.save ('fold_val_acc'+str(cnt), bl.history['val_acc'])
             np.save ('fold_loss'+str(cnt), bl.history['loss'])
