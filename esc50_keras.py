@@ -61,8 +61,7 @@ params = {'compute_features':True, 'plot':True, \
           'nfolds': 1, 'split':.2, \
           'bsize': 128, 'nepoch': 200}
 
-def compute_features (root_path, params):librosa.display.specshow(librosa.logamplitude(C**2, ref_power=np.max),
-...                          sr=sr, x_axis='time', y_axis='cqt_note')
+def compute_features (root_path, params):
     nframes = int(SAMPLELEN / params['hop']);
         
     X_data = np.zeros ((params['nsamples'], 2, params['ncoeff'], nframes))
@@ -83,8 +82,8 @@ def compute_features (root_path, params):librosa.display.specshow(librosa.logamp
                     print ('empty file!')
                     continue
 
-                C = librosa.feature.mfcc(y=y, sr=sr, hop_length=params['hop'],n_mfcc = params['ncoeff'])
-                #C = librosa.core.cqt y=y, sr=sr, hop_length=params['hop'])                
+                #C = librosa.feature.mfcc(y=y, sr=sr, hop_length=params['hop'],n_mfcc = params['ncoeff'])
+                C = np.abs (librosa.core.cqt( y=y, sr=sr, hop_length=params['hop'], real=False))                
                 C = C[:params['ncoeff'],:nframes]
                 X_data[samples, 0, :C.shape[0], :C.shape[1]] = C
                 y_data[samples] = classes
