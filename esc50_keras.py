@@ -54,13 +54,13 @@ class ShapeWrapper(BaseEstimator):
 
 SAMPLELEN = 110250 # in samples is 5 sec @ 22050
 
-params = {'plot':True, 'features':'cqt', \
+params = {'plot':False, 'features':'cqt', \
           'compute_baseline': True, 'compute_cnn': True, \
           'standardize_data':True, 'augment_data': True, \
           'ncoeff': 100, 'hop': 2048, \
           'nclasses': 50, 'nsamples':2000, \
-          'nfolds': 1, 'split':.2, \
-          'bsize': 128, 'nepoch': 400}
+          'nfolds': 1, 'split':.25, \
+          'bsize': 128, 'nepoch': 600}
 
 def get_features (file, features, hop, bins):
     y = np.zeros(SAMPLELEN);   
